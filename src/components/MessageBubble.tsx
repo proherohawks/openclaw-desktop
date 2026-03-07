@@ -1,4 +1,5 @@
 import type { Message } from "../lib/types";
+import MarkdownContent from "./MarkdownContent";
 
 interface Props {
   message: Message;
@@ -36,15 +37,19 @@ export default function MessageBubble({ message, agentEmoji }: Props) {
         }`}
       >
         <div
-          className={`whitespace-pre-wrap break-words text-[13px] leading-relaxed ${
+          className={`break-words text-[13px] leading-relaxed ${
             isUser
-              ? "text-claw-amber-light"
+              ? "whitespace-pre-wrap text-claw-amber-light"
               : isError
-              ? "text-red-400"
+              ? "whitespace-pre-wrap text-red-400"
               : "text-[#d4d4d8]"
           }`}
         >
-          {message.text || "(empty reply)"}
+          {isUser || isError ? (
+            message.text || "(empty reply)"
+          ) : (
+            <MarkdownContent content={message.text || "(empty reply)"} />
+          )}
         </div>
         <div className="mt-1.5 text-right text-[9px] text-claw-dim">{ts}</div>
       </div>
