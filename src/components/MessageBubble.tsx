@@ -1,0 +1,53 @@
+import type { Message } from "../lib/types";
+
+interface Props {
+  message: Message;
+  agentEmoji: string;
+}
+
+export default function MessageBubble({ message, agentEmoji }: Props) {
+  const isUser = message.role === "user";
+  const isError = message.role === "error";
+  const ts = new Date(message.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  return (
+    <div className={`flex items-end gap-2.5 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+      {/* Avatar (only for non-user messages) */}
+      {!isUser && (
+        <div
+          className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border text-sm ${
+            isError
+              ? "border-claw-error-avatar-border bg-claw-error-avatar-bg"
+              : "border-claw-border-hover bg-claw-card"
+          }`}
+        >
+          {isError ? "⚠" : agentEmoji}
+        </div>
+      )}
+
+      {/* Bubble */}
+      <div
+        className={`max-w-[68%] border px-3.5 py-2.5 ${
+          isUser
+            ? "rounded-[10px_10px_2px_10px] border-claw-user-border bg-claw-user-bg"
+            : isError
+            ? "rounded-[10px_10px_10px_2px] border-claw-error-border bg-claw-error-bg"
+            : "rounded-[10px_10px_10px_2px] border-claw-border bg-claw-surface"
+        }`}
+      >
+        <div
+          className={`whitespace-pre-wrap break-words text-[13px] leading-relaxed ${
+            isUser
+              ? "text-claw-amber-light"
+              : isError
+              ? "text-red-400"
+              : "text-[#d4d4d8]"
+          }`}
+        >
+          {message.text || "(empty reply)"}
+        </div>
+        <div className="mt-1.5 text-right text-[9px] text-claw-dim">{ts}</div>
+      </div>
+    </div>
+  );
+}
