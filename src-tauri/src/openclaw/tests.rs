@@ -11,10 +11,11 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 fn agent_serde_round_trip() {
     let agent = Agent {
         id: "a1".into(),
-        name: "Agent One".into(),
+        name: Some("Agent One".into()),
         model: Some("gpt-4".into()),
         identity: Some(AgentIdentity {
-            emoji: "\u{1F916}".into(),
+            emoji: Some("\u{1F916}".into()),
+            avatar: None,
             name: "Bot".into(),
         }),
     };
@@ -110,6 +111,17 @@ async fn start_mock_gateway() -> String {
         let ws_stream = tokio_tungstenite::accept_async(stream).await.unwrap();
         let (mut write, mut read) = ws_stream.split();
 
+        // Send connect.challenge event immediately
+        let challenge = serde_json::json!({
+            "type": "event",
+            "event": "connect.challenge",
+            "payload": { "nonce": "mock-nonce-12345" }
+        });
+        write
+            .send(WsMessage::Text(challenge.to_string().into()))
+            .await
+            .unwrap();
+
         while let Some(Ok(msg)) = read.next().await {
             if let WsMessage::Text(text) = msg {
                 let req: serde_json::Value =
@@ -118,10 +130,24 @@ async fn start_mock_gateway() -> String {
                 let method = req["method"].as_str().unwrap_or("");
 
                 match method {
+                    "connect" => {
+                        let resp = serde_json::json!({
+                            "type": "res",
+                            "id": id,
+                            "ok": true,
+                            "payload": { "protocol": 3 }
+                        });
+                        write
+                            .send(WsMessage::Text(resp.to_string().into()))
+                            .await
+                            .unwrap();
+                    }
                     "health" => {
                         let resp = serde_json::json!({
+                            "type": "res",
                             "id": id,
-                            "result": { "status": "ok" }
+                            "ok": true,
+                            "payload": { "status": "ok" }
                         });
                         write
                             .send(WsMessage::Text(resp.to_string().into()))
@@ -130,15 +156,31 @@ async fn start_mock_gateway() -> String {
                     }
                     "agents.list" => {
                         let resp = serde_json::json!({
+                            "type": "res",
                             "id": id,
-                            "result": {
+                            "ok": true,
+                            "payload": {
                                 "agents": [{
                                     "id": "test-1",
                                     "name": "Test Agent",
-                                    "model": "gpt-4",
-                                    "identity": { "emoji": "\u{1F916}", "name": "TestBot" }
+                                    "model": "gpt-4"
                                 }],
                                 "defaultId": "test-1"
+                            }
+                        });
+                        write
+                            .send(WsMessage::Text(resp.to_string().into()))
+                            .await
+                            .unwrap();
+                    }
+                    "agent.identity.get" => {
+                        let resp = serde_json::json!({
+                            "type": "res",
+                            "id": id,
+                            "ok": true,
+                            "payload": {
+                                "name": "Test Agent",
+                                "emoji": "\u{1F916}"
                             }
                         });
                         write
@@ -150,8 +192,10 @@ async fn start_mock_gateway() -> String {
                         let run_id = "run-mock-1";
                         // Ack
                         let ack = serde_json::json!({
+                            "type": "res",
                             "id": id,
-                            "result": { "runId": run_id, "status": "started" }
+                            "ok": true,
+                            "payload": { "runId": run_id, "status": "started" }
                         });
                         write
                             .send(WsMessage::Text(ack.to_string().into()))
@@ -160,22 +204,30 @@ async fn start_mock_gateway() -> String {
 
                         // Delta
                         let delta = serde_json::json!({
-                            "state": "delta",
-                            "message": "Hello ",
-                            "sessionKey": "agent:test-1:main",
-                            "runId": run_id
+                            "type": "event",
+                            "event": "chat",
+                            "payload": {
+                                "state": "delta",
+                                "message": "Hello ",
+                                "sessionKey": "agent:test-1:main",
+                                "runId": run_id
+                            }
                         });
                         write
                             .send(WsMessage::Text(delta.to_string().into()))
                             .await
                             .unwrap();
 
-                        // Final (with full message, overrides delta)
+                        // Final
                         let final_ev = serde_json::json!({
-                            "state": "final",
-                            "message": "Hello world!",
-                            "sessionKey": "agent:test-1:main",
-                            "runId": run_id
+                            "type": "event",
+                            "event": "chat",
+                            "payload": {
+                                "state": "final",
+                                "message": "Hello world!",
+                                "sessionKey": "agent:test-1:main",
+                                "runId": run_id
+                            }
                         });
                         write
                             .send(WsMessage::Text(final_ev.to_string().into()))
@@ -184,7 +236,9 @@ async fn start_mock_gateway() -> String {
                     }
                     _ => {
                         let resp = serde_json::json!({
+                            "type": "res",
                             "id": id,
+                            "ok": false,
                             "error": { "message": format!("Unknown method: {}", method) }
                         });
                         write
@@ -211,7 +265,7 @@ async fn connect_success_returns_agents() {
 
     assert_eq!(result.agents.len(), 1);
     assert_eq!(result.agents[0].id, "test-1");
-    assert_eq!(result.agents[0].name, "Test Agent");
+    assert_eq!(result.agents[0].name, Some("Test Agent".to_string()));
     assert_eq!(result.default_id, Some("test-1".to_string()));
     assert_eq!(client.agents().len(), 1);
     assert_eq!(client.ws_url(), url);

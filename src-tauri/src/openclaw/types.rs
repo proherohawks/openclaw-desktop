@@ -114,10 +114,11 @@ mod tests {
     fn agent_serializes_correctly() {
         let agent = Agent {
             id: "agent-1".into(),
-            name: "My Agent".into(),
+            name: Some("My Agent".into()),
             model: Some("gpt-4".into()),
             identity: Some(AgentIdentity {
-                emoji: "\u{1F916}".into(),
+                emoji: Some("\u{1F916}".into()),
+                avatar: None,
                 name: "Bot".into(),
             }),
         };

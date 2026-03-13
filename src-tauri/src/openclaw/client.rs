@@ -8,6 +8,9 @@ use tokio_tungstenite::{
 };
 use uuid::Uuid;
 
+use super::device_identity::{
+    build_v2_payload, load_or_create_identity, raw_public_key_base64url, sign_connect_payload,
+};
 use super::types::*;
 use crate::error::AppError;
 
@@ -66,23 +69,43 @@ impl OpenClawClient {
             default_agent_id: None,
         };
 
-        // Step 2: Wait for connect.challenge event
-        let _nonce = client.wait_for_challenge().await?;
+        // Step 2: Load or create device identity
+        let identity = load_or_create_identity()?;
 
-        // Step 3: Send connect RPC with auth token
+        // Step 3: Wait for connect.challenge event
+        let nonce = client.wait_for_challenge().await?;
+
+        // Step 4: Build and sign v2 challenge payload
+        let signed_at_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
+        let payload = build_v2_payload(&identity.device_id, token, &nonce, signed_at_ms);
+        let signature = sign_connect_payload(&identity, &payload);
+        let public_key_b64 = raw_public_key_base64url(&identity);
+
+        // Step 5: Send connect RPC with auth token and device block
         let connect_params = serde_json::json!({
             "minProtocol": 3,
             "maxProtocol": 3,
             "client": {
-                "id": "webchat",
+                "id": "openclaw-control-ui",
                 "version": env!("CARGO_PKG_VERSION"),
                 "platform": std::env::consts::OS,
                 "mode": "webchat"
             },
             "role": "operator",
-            "scopes": ["operator.admin", "operator.approvals", "operator.pairing"],
+            "scopes": ["operator.read", "operator.write", "operator.admin", "operator.approvals", "operator.pairing"],
             "auth": {
                 "token": token
+            },
+            "device": {
+                "id": identity.device_id,
+                "publicKey": public_key_b64,
+                "signature": signature,
+                "signedAt": signed_at_ms,
+                "nonce": nonce
             }
         });
 

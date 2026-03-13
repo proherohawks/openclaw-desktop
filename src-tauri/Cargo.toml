@@ -1,6 +1,6 @@
 [package]
 name = "openclaw-desktop"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
@@ -19,6 +19,12 @@ tokio-tungstenite = "0.24"
 futures-util = "0.3"
 thiserror = "1"
 uuid = { version = "1", features = ["v4"] }
+ed25519-dalek = { version = "2", features = ["pem", "rand_core"] }
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.8"
+dirs = "5"
+hex = "0.4"
 
 [dev-dependencies]
 tokio-test = "0.4"
