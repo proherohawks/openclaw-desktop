@@ -223,7 +223,7 @@ impl OpenClawClient {
             .map_err(|e| AppError::ParseError(e.to_string()))?;
 
         self.write
-            .send(WsMessage::Text(json.into()))
+            .send(WsMessage::Text(json))
             .await
             .map_err(|e| AppError::RequestFailed(e.to_string()))?;
 
