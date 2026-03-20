@@ -18,6 +18,13 @@ src-tauri/gen/
 *.swp
 *.swo
 
+# AI / Agent tooling
+.ai/
+.claude/
+CLAUDE.md
+AGENTS.md
+PLANS.md
+
 # OS
 .DS_Store
 Thumbs.db
