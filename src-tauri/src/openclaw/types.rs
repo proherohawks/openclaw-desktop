@@ -72,7 +72,6 @@ pub struct RpcResponse {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct RpcError {
     pub code: Option<i32>,
     pub message: String,
@@ -81,7 +80,6 @@ pub struct RpcError {
 // --- Chat types ---
 
 #[derive(Debug, Serialize)]
-#[allow(dead_code)]
 pub struct ChatSendParams {
     #[serde(rename = "sessionKey")]
     pub session_key: String,
@@ -92,7 +90,6 @@ pub struct ChatSendParams {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct ChatSendAck {
     #[serde(rename = "runId")]
     pub run_id: String,
@@ -100,7 +97,6 @@ pub struct ChatSendAck {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct StreamEvent {
     pub state: String,
     pub message: Option<String>,
