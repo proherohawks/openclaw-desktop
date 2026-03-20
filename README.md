@@ -38,5 +38,11 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full system design.
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
+## Support
+
+If you find this useful, consider buying me a coffee ☕
+
+<a href="https://buymeacoffee.com/monchoz" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="40"></a>
+
 ## License
 [MIT](LICENSE)
