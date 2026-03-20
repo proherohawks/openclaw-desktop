@@ -2,6 +2,8 @@
 
 Local Tauri v2 desktop app to chat with your running OpenClaw agents via WebSocket.
 
+![OpenClaw Desktop](docs/images/screenshot.png)
+
 ## Prerequisites
 - Rust stable + `cargo` — https://rustup.rs
 - Node.js 18+ — https://nodejs.org
