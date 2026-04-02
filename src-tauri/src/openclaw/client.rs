@@ -325,7 +325,9 @@ impl OpenClawClient {
                     if let Some(msg) = payload.get("message") {
                         // message can be a string or an object with content
                         if let Some(text) = msg.as_str() {
-                            collected = text.to_string();
+                            if !text.is_empty() {
+                                collected = text.to_string();
+                            }
                         } else if let Some(content) = msg.get("content") {
                             // content is array of { type: "text", text: "..." }
                             if let Some(arr) = content.as_array() {
