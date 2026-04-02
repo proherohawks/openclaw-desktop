@@ -11,12 +11,31 @@ pub struct AgentIdentity {
     pub name: String,
 }
 
+/// Deserialize model field that can be either a string ("anthropic/claude-opus-4-6")
+/// or an object ({"primary": "anthropic/claude-opus-4-6"}).
+fn deserialize_model_field<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde_json::Value;
+    let v: Option<Value> = Option::deserialize(deserializer)?;
+    match v {
+        None => Ok(None),
+        Some(Value::String(s)) => Ok(Some(s)),
+        Some(Value::Object(map)) => {
+            // Extract "primary" field from model object
+            Ok(map.get("primary").and_then(|v| v.as_str()).map(String::from))
+        }
+        Some(_) => Ok(None),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Agent {
     pub id: String,
     #[serde(default)]
     pub name: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_model_field")]
     pub model: Option<String>,
     #[serde(default)]
     pub identity: Option<AgentIdentity>,
@@ -198,5 +217,26 @@ mod tests {
         let ack: ChatSendAck = serde_json::from_str(json).unwrap();
         assert_eq!(ack.run_id, "run-123");
         assert_eq!(ack.status, "started");
+    }
+
+    #[test]
+    fn agent_model_deserializes_from_string() {
+        let json = r#"{"id":"main","model":"anthropic/claude-opus-4-6"}"#;
+        let agent: Agent = serde_json::from_str(json).unwrap();
+        assert_eq!(agent.model, Some("anthropic/claude-opus-4-6".to_string()));
+    }
+
+    #[test]
+    fn agent_model_deserializes_from_object() {
+        let json = r#"{"id":"main","model":{"primary":"anthropic/claude-opus-4-6"}}"#;
+        let agent: Agent = serde_json::from_str(json).unwrap();
+        assert_eq!(agent.model, Some("anthropic/claude-opus-4-6".to_string()));
+    }
+
+    #[test]
+    fn agent_model_deserializes_null() {
+        let json = r#"{"id":"main","model":null}"#;
+        let agent: Agent = serde_json::from_str(json).unwrap();
+        assert!(agent.model.is_none());
     }
 }
