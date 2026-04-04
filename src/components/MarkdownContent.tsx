@@ -1,6 +1,7 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import { openUrl } from "../lib/shell";
 
 const components: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -25,9 +26,11 @@ const components: Components = {
   a: ({ href, children }) => (
     <a
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-claw-amber underline underline-offset-2 hover:text-claw-amber-light"
+      onClick={(e) => {
+        e.preventDefault();
+        if (href) openUrl(href);
+      }}
+      className="cursor-pointer text-claw-amber underline underline-offset-2 hover:text-claw-amber-light"
     >
       {children}
     </a>
