@@ -16,6 +16,17 @@ use crate::error::AppError;
 
 type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
+fn normalize_markdown_reply(text: &str) -> String {
+    if text.contains("\\n") || text.contains("\\t") || text.contains("\\r") {
+        text.replace("\\r\\n", "\n")
+            .replace("\\n", "\n")
+            .replace("\\t", "\t")
+            .replace("\\r", "\r")
+    } else {
+        text.to_string()
+    }
+}
+
 pub struct OpenClawClient {
     ws_url: String,
     write: SplitSink<WsStream, WsMessage>,
@@ -326,7 +337,7 @@ impl OpenClawClient {
                         // message can be a string or an object with content
                         if let Some(text) = msg.as_str() {
                             if !text.is_empty() {
-                                collected = text.to_string();
+                                collected = normalize_markdown_reply(text);
                             }
                         } else if let Some(content) = msg.get("content") {
                             // content is array of { type: "text", text: "..." }
@@ -340,7 +351,7 @@ impl OpenClawClient {
                                     }
                                 }
                                 if !text_parts.is_empty() {
-                                    collected = text_parts;
+                                    collected = normalize_markdown_reply(&text_parts);
                                 }
                             }
                         }
@@ -360,12 +371,12 @@ impl OpenClawClient {
                                     }
                                 }
                                 if !text_parts.is_empty() {
-                                    collected = text_parts;
+                                    collected = normalize_markdown_reply(&text_parts);
                                 }
                             }
                         } else if let Some(text) = msg.as_str() {
                             if !text.is_empty() {
-                                collected = text.to_string();
+                                collected = normalize_markdown_reply(text);
                             }
                         }
                     }
