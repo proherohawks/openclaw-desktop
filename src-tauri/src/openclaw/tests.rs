@@ -299,6 +299,11 @@ async fn send_message_collects_deltas_until_final() {
 
 #[tokio::test]
 async fn send_message_unescapes_newlines_for_markdown() {
+    let temp_root = std::env::temp_dir().join(format!("openclaw-desktop-test-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&temp_root).unwrap();
+    let identity_path = temp_root.join("device-identity.json");
+    std::env::set_var("OPENCLAW_DESKTOP_IDENTITY_PATH", &identity_path);
+
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let url = format!("ws://{}", addr);
@@ -401,6 +406,10 @@ async fn send_message_unescapes_newlines_for_markdown() {
         .expect("send_message should succeed");
 
     assert_eq!(reply.reply, "## Title\n\n```ts\nconst x = 1;\n```");
+
+    std::env::remove_var("OPENCLAW_DESKTOP_IDENTITY_PATH");
+    let _ = std::fs::remove_file(&identity_path);
+    let _ = std::fs::remove_dir_all(&temp_root);
 }
 
 #[tokio::test]
