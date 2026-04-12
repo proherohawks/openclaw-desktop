@@ -28,6 +28,9 @@ jobs:
   rust:
     name: Rust (check + clippy + test)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src-tauri
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -43,21 +46,19 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Install Tauri system deps
+        working-directory: .
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
 
       - name: Cargo check
-        working-directory: src-tauri
-        run: cargo check
+        run: cargo check --locked
 
       - name: Clippy
-        working-directory: src-tauri
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --locked -- -D warnings
 
       - name: Tests
-        working-directory: src-tauri
-        run: cargo test
+        run: cargo test --locked -- --nocapture
 
   tauri-smoke-build-linux:
     name: Tauri smoke build (Linux)
