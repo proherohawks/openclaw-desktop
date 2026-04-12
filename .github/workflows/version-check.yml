@@ -1,0 +1,41 @@
+name: Version Check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  version-consistency:
+    name: Version consistency
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate version consistency
+        run: |
+          set -euo pipefail
+
+          package_version=$(node -p "require('./package.json').version")
+          tauri_version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          cargo_version=$(python3 - <<'PY'
+from pathlib import Path
+import re
+content = Path('src-tauri/Cargo.toml').read_text()
+match = re.search(r'^version = "([^"]+)"$', content, re.MULTILINE)
+if not match:
+    raise SystemExit('Could not find Cargo version')
+print(match.group(1))
+PY
+)
+
+          echo "package.json: $package_version"
+          echo "tauri.conf.json: $tauri_version"
+          echo "Cargo.toml: $cargo_version"
+
+          if [ "$package_version" != "$tauri_version" ] || [ "$package_version" != "$cargo_version" ]; then
+            echo "Version mismatch detected across release metadata files." >&2
+            exit 1
+          fi

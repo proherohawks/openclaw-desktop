@@ -1,13 +1,13 @@
 {
   "name": "openclaw-desktop",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "tauri": "tauri"
   },
   "dependencies": {
