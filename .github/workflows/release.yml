@@ -51,16 +51,7 @@ jobs:
           expected='${{ steps.extract.outputs.version }}'
           package_version=$(node -p "require('./package.json').version")
           tauri_version=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          cargo_version=$(python3 - <<'PY'
-from pathlib import Path
-import re
-content = Path('src-tauri/Cargo.toml').read_text()
-match = re.search(r'^version = "([^"]+)"$', content, re.MULTILINE)
-if not match:
-    raise SystemExit('Could not find Cargo version')
-print(match.group(1))
-PY
-)
+          cargo_version=$(sed -n 's/^version = "\([^"]*\)"$/\1/p' src-tauri/Cargo.toml | head -n1)
 
           test "$expected" = "$package_version"
           test "$expected" = "$tauri_version"
