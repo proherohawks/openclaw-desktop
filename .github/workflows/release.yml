@@ -99,14 +99,18 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
+      - name: Clean previous bundle outputs
+        run: rm -rf src-tauri/target/release/bundle
+
       - name: Build Tauri bundles
         run: npm run tauri build
 
       - name: Collect release artifacts
         run: |
           set -euo pipefail
+          version='${{ needs.validate-tag.outputs.version }}'
           mkdir -p release-artifacts
-          find src-tauri/target/release/bundle \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) -type f -exec cp {} release-artifacts/ \;
+          find src-tauri/target/release/bundle \( -name "*${version}*.deb" -o -name "*${version}*.rpm" -o -name "*${version}*.AppImage" \) -type f -exec cp {} release-artifacts/ \;
           ls -lah release-artifacts
 
       - uses: actions/upload-artifact@v4
