@@ -283,6 +283,11 @@ async fn connect_with_bad_url_returns_connection_failed() {
 
 #[tokio::test]
 async fn send_message_collects_deltas_until_final() {
+    let temp_root = std::env::temp_dir().join(format!("openclaw-desktop-test-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&temp_root).unwrap();
+    let identity_path = temp_root.join("device-identity.json");
+    std::env::set_var("OPENCLAW_DESKTOP_IDENTITY_PATH", &identity_path);
+
     let url = start_mock_gateway().await;
     let (mut client, _) = OpenClawClient::connect(&url, "test-token")
         .await
@@ -295,6 +300,9 @@ async fn send_message_collects_deltas_until_final() {
 
     assert_eq!(reply.agent_id, "test-1");
     assert_eq!(reply.reply, "Hello world!");
+
+    std::env::remove_var("OPENCLAW_DESKTOP_IDENTITY_PATH");
+    std::fs::remove_dir_all(&temp_root).ok();
 }
 
 #[tokio::test]
