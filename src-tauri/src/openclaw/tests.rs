@@ -283,6 +283,11 @@ async fn connect_with_bad_url_returns_connection_failed() {
 
 #[tokio::test]
 async fn send_message_collects_deltas_until_final() {
+    let temp_root = std::env::temp_dir().join(format!("openclaw-desktop-test-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&temp_root).unwrap();
+    let identity_path = temp_root.join("device-identity.json");
+    std::env::set_var("OPENCLAW_DESKTOP_IDENTITY_PATH", &identity_path);
+
     let url = start_mock_gateway().await;
     let (mut client, _) = OpenClawClient::connect(&url, "test-token")
         .await
@@ -295,6 +300,124 @@ async fn send_message_collects_deltas_until_final() {
 
     assert_eq!(reply.agent_id, "test-1");
     assert_eq!(reply.reply, "Hello world!");
+
+    std::env::remove_var("OPENCLAW_DESKTOP_IDENTITY_PATH");
+    std::fs::remove_dir_all(&temp_root).ok();
+}
+
+#[tokio::test]
+async fn send_message_unescapes_newlines_for_markdown() {
+    let temp_root = std::env::temp_dir().join(format!("openclaw-desktop-test-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&temp_root).unwrap();
+    let identity_path = temp_root.join("device-identity.json");
+    std::env::set_var("OPENCLAW_DESKTOP_IDENTITY_PATH", &identity_path);
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let url = format!("ws://{}", addr);
+
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let ws_stream = tokio_tungstenite::accept_async(stream).await.unwrap();
+        let (mut write, mut read) = ws_stream.split();
+
+        let challenge = serde_json::json!({
+            "type": "event",
+            "event": "connect.challenge",
+            "payload": { "nonce": "mock-nonce-12345" }
+        });
+        write
+            .send(WsMessage::Text(challenge.to_string().into()))
+            .await
+            .unwrap();
+
+        while let Some(Ok(msg)) = read.next().await {
+            if let WsMessage::Text(text) = msg {
+                let req: serde_json::Value = serde_json::from_str(&text).unwrap();
+                let id = req["id"].as_str().unwrap_or("").to_string();
+                let method = req["method"].as_str().unwrap_or("");
+
+                match method {
+                    "connect" => {
+                        let resp = serde_json::json!({
+                            "type": "res",
+                            "id": id,
+                            "ok": true,
+                            "payload": { "protocol": 3 }
+                        });
+                        write.send(WsMessage::Text(resp.to_string().into())).await.unwrap();
+                    }
+                    "agents.list" => {
+                        let resp = serde_json::json!({
+                            "type": "res",
+                            "id": id,
+                            "ok": true,
+                            "payload": {
+                                "agents": [{"id": "test-1", "name": "Test Agent", "model": "gpt-4"}],
+                                "defaultId": "test-1"
+                            }
+                        });
+                        write.send(WsMessage::Text(resp.to_string().into())).await.unwrap();
+                    }
+                    "agent.identity.get" => {
+                        let resp = serde_json::json!({
+                            "type": "res",
+                            "id": id,
+                            "ok": true,
+                            "payload": { "name": "Test Agent", "emoji": "🤖" }
+                        });
+                        write.send(WsMessage::Text(resp.to_string().into())).await.unwrap();
+                    }
+                    "chat.send" => {
+                        let run_id = "run-markdown-1";
+                        let ack = serde_json::json!({
+                            "type": "res",
+                            "id": id,
+                            "ok": true,
+                            "payload": { "runId": run_id, "status": "started" }
+                        });
+                        write.send(WsMessage::Text(ack.to_string().into())).await.unwrap();
+
+                        let final_ev = serde_json::json!({
+                            "type": "event",
+                            "event": "chat",
+                            "payload": {
+                                "state": "final",
+                                "message": "## Title\\n\\n```ts\\nconst x = 1;\\n```",
+                                "sessionKey": "agent:test-1:main",
+                                "runId": run_id
+                            }
+                        });
+                        write.send(WsMessage::Text(final_ev.to_string().into())).await.unwrap();
+                    }
+                    _ => {
+                        let resp = serde_json::json!({
+                            "type": "res",
+                            "id": id,
+                            "ok": true,
+                            "payload": {}
+                        });
+                        write.send(WsMessage::Text(resp.to_string().into())).await.unwrap();
+                    }
+                }
+            }
+        }
+    });
+
+    let (mut client, _) = OpenClawClient::connect(&url, "test-token")
+        .await
+        .expect("connect should succeed");
+
+    let reply = client
+        .send_message("test-1", "show markdown")
+        .await
+        .expect("send_message should succeed");
+
+    assert_eq!(reply.reply, "## Title\n\n```ts\nconst x = 1;\n```");
+
+    std::env::remove_var("OPENCLAW_DESKTOP_IDENTITY_PATH");
+    let _ = std::fs::remove_file(&identity_path);
+    let _ = std::fs::remove_dir_all(&temp_root);
 }
 
 #[tokio::test]

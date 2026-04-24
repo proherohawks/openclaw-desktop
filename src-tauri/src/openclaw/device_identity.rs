@@ -28,6 +28,10 @@ struct DeviceIdentityFile {
 }
 
 fn identity_file_path() -> Result<PathBuf, AppError> {
+    if let Ok(path) = std::env::var("OPENCLAW_DESKTOP_IDENTITY_PATH") {
+        return Ok(PathBuf::from(path));
+    }
+
     let home = dirs::home_dir()
         .ok_or_else(|| AppError::ConnectionFailed("Cannot determine home directory".into()))?;
     Ok(home.join(".openclaw-desktop").join("device-identity.json"))

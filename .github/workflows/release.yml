@@ -1,0 +1,174 @@
+name: Release
+
+'on':
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate-tag:
+    name: Validate tag version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+      prerelease: ${{ steps.extract.outputs.prerelease }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: extract
+        name: Extract version from tag
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]]; then
+            echo "Invalid release tag: $tag" >&2
+            exit 1
+          fi
+
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+          else
+            prerelease=false
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Validate version consistency against tag
+        run: |
+          set -euo pipefail
+
+          expected='${{ steps.extract.outputs.version }}'
+          package_version=$(node -p "require('./package.json').version")
+          tauri_version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          cargo_version=$(sed -n 's/^version = "\([^"]*\)"$/\1/p' src-tauri/Cargo.toml | head -n1)
+
+          test "$expected" = "$package_version"
+          test "$expected" = "$tauri_version"
+          test "$expected" = "$cargo_version"
+
+  build-linux:
+    name: Build Linux release
+    runs-on: ubuntu-latest
+    needs: validate-tag
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm run test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Rust tests
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Clean previous bundle outputs
+        run: rm -rf src-tauri/target/release/bundle
+
+      - name: Build Tauri bundles
+        run: npm run tauri build
+
+      - name: Collect release artifacts
+        run: |
+          set -euo pipefail
+          version='${{ needs.validate-tag.outputs.version }}'
+          mkdir -p release-artifacts
+          find src-tauri/target/release/bundle \( -name "*${version}*.deb" -o -name "*${version}*.rpm" -o -name "*${version}*.AppImage" \) -type f -exec cp {} release-artifacts/ \;
+          ls -lah release-artifacts
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-release-artifacts
+          path: release-artifacts/*
+
+  checksums:
+    name: Generate checksums
+    runs-on: ubuntu-latest
+    needs: build-linux
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-release-artifacts
+          path: release-artifacts
+
+      - name: Generate SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          cd release-artifacts
+          sha256sum * > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-checksums
+          path: release-artifacts/SHA256SUMS.txt
+
+  publish-release:
+    name: Publish GitHub release
+    runs-on: ubuntu-latest
+    needs: [validate-tag, build-linux, checksums]
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-release-artifacts
+          path: release-artifacts
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-checksums
+          path: release-artifacts
+
+      - name: Create GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          prerelease_flag=''
+          if [ '${{ needs.validate-tag.outputs.prerelease }}' = 'true' ]; then
+            prerelease_flag='--prerelease'
+          fi
+
+          gh release create '${{ github.ref_name }}' \
+            --repo '${{ github.repository }}' \
+            --generate-notes \
+            $prerelease_flag \
+            release-artifacts/*
