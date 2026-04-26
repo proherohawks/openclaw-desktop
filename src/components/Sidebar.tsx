@@ -7,7 +7,9 @@ function AgentRow({ agent }: { agent: Agent }) {
   const messageCount = useStore(
     (s) => (s.messages[agent.id] ?? []).length,
   );
+  const unreadCount = useStore((s) => s.unreadCounts[agent.id] ?? 0);
   const isActive = agent.id === activeAgentId;
+  const hasUnread = unreadCount > 0;
 
   const emoji = agent.identity?.emoji ?? "🤖";
   const displayName = agent.identity?.name ?? agent.name ?? agent.id;
@@ -18,13 +20,15 @@ function AgentRow({ agent }: { agent: Agent }) {
       className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-all duration-150 ${
         isActive
           ? "border border-claw-border-hover bg-claw-card"
-          : "border border-transparent hover:bg-claw-card/50"
+          : hasUnread
+            ? "border border-claw-amber/40 bg-claw-amber/10 hover:bg-claw-amber/15"
+            : "border border-transparent hover:bg-claw-card/50"
       }`}
       style={{ marginBottom: 3 }}
     >
       <span className="text-base">{emoji}</span>
       <div className="flex-1 min-w-0">
-        <div className={`truncate text-xs ${isActive ? "font-semibold text-claw-text-bright" : "text-claw-text-muted"}`}>
+        <div className={`truncate text-xs ${isActive ? "font-semibold text-claw-text-bright" : hasUnread ? "font-semibold text-claw-amber-light" : "text-claw-text-muted"}`}>
           {displayName}
         </div>
         <div className="flex items-center gap-1 text-[10px] text-claw-green">
@@ -33,7 +37,14 @@ function AgentRow({ agent }: { agent: Agent }) {
         </div>
       </div>
       {messageCount > 0 && (
-        <span className="rounded bg-claw-border px-1.5 py-px text-[9px] text-claw-subtle">
+        <span
+          className={`inline-flex min-w-[22px] items-center justify-center gap-1 rounded px-1.5 py-px text-[9px] transition-all duration-150 ${
+            hasUnread
+              ? "bg-claw-amber text-claw-bg"
+              : "bg-claw-border text-claw-subtle"
+          }`}
+        >
+          {hasUnread && <span className="inline-block h-[5px] w-[5px] rounded-full bg-claw-bg/80" />}
           {messageCount}
         </span>
       )}
