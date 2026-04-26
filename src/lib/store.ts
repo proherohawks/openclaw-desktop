@@ -21,6 +21,9 @@ interface AppState {
   // Messages — keyed by agent id
   messages: Record<string, Message[]>;
 
+  // Visual notification state per agent
+  unreadCounts: Record<string, number>;
+
   // Loading per agent
   sending: Record<string, boolean>;
 
@@ -44,6 +47,7 @@ export const useStore = create<AppState>()(
       agents: [],
       activeAgentId: null,
       messages: {},
+      unreadCounts: {},
       sending: {},
 
       setEndpoint: (ep) => set({ endpoint: ep }),
@@ -60,6 +64,7 @@ export const useStore = create<AppState>()(
             endpoint,
             token,
             activeAgentId: result.default_id ?? result.agents[0]?.id ?? null,
+            unreadCounts: {},
           });
         } catch (err) {
           set({
@@ -75,13 +80,20 @@ export const useStore = create<AppState>()(
           agents: [],
           activeAgentId: null,
           connectionError: null,
+          unreadCounts: {},
         }),
 
-      setActiveAgent: (id) => set({ activeAgentId: id }),
+      setActiveAgent: (id) =>
+        set((state) => ({
+          activeAgentId: id,
+          unreadCounts: { ...state.unreadCounts, [id]: 0 },
+        })),
 
       sendMessage: async (text) => {
         const { activeAgentId, messages, sending } = get();
         if (!activeAgentId || sending[activeAgentId]) return;
+
+        const targetAgentId = activeAgentId;
 
         const userMsg: Message = {
           id: uuidv4(),
@@ -93,26 +105,33 @@ export const useStore = create<AppState>()(
         set({
           messages: {
             ...messages,
-            [activeAgentId]: [...(messages[activeAgentId] ?? []), userMsg],
+            [targetAgentId]: [...(messages[targetAgentId] ?? []), userMsg],
           },
-          sending: { ...sending, [activeAgentId]: true },
+          sending: { ...sending, [targetAgentId]: true },
         });
 
         try {
-          const reply = await api.sendMessage(activeAgentId, text);
+          const reply = await api.sendMessage(targetAgentId, text);
           const assistantMsg: Message = {
             id: uuidv4(),
             role: "assistant",
             text: reply.reply,
             ts: reply.timestamp,
           };
-          set((state) => ({
-            messages: {
-              ...state.messages,
-              [activeAgentId]: [...(state.messages[activeAgentId] ?? []), assistantMsg],
-            },
-            sending: { ...state.sending, [activeAgentId]: false },
-          }));
+          set((state) => {
+            const isUnread = get().activeAgentId !== targetAgentId;
+            return {
+              messages: {
+                ...state.messages,
+                [targetAgentId]: [...(state.messages[targetAgentId] ?? []), assistantMsg],
+              },
+              unreadCounts: {
+                ...state.unreadCounts,
+                [targetAgentId]: isUnread ? (state.unreadCounts[targetAgentId] ?? 0) + 1 : 0,
+              },
+              sending: { ...state.sending, [targetAgentId]: false },
+            };
+          });
         } catch (err) {
           const errorMsg: Message = {
             id: uuidv4(),
@@ -120,19 +139,27 @@ export const useStore = create<AppState>()(
             text: err instanceof Error ? err.message : String(err),
             ts: Date.now(),
           };
-          set((state) => ({
-            messages: {
-              ...state.messages,
-              [activeAgentId]: [...(state.messages[activeAgentId] ?? []), errorMsg],
-            },
-            sending: { ...state.sending, [activeAgentId]: false },
-          }));
+          set((state) => {
+            const isUnread = get().activeAgentId !== targetAgentId;
+            return {
+              messages: {
+                ...state.messages,
+                [targetAgentId]: [...(state.messages[targetAgentId] ?? []), errorMsg],
+              },
+              unreadCounts: {
+                ...state.unreadCounts,
+                [targetAgentId]: isUnread ? (state.unreadCounts[targetAgentId] ?? 0) + 1 : 0,
+              },
+              sending: { ...state.sending, [targetAgentId]: false },
+            };
+          });
         }
       },
 
       clearMessages: (agentId) =>
         set((state) => ({
           messages: { ...state.messages, [agentId]: [] },
+          unreadCounts: { ...state.unreadCounts, [agentId]: 0 },
         })),
     }),
     {
