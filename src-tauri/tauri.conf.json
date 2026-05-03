@@ -1,6 +1,6 @@
 {
   "productName": "OpenClaw Desktop",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "identifier": "com.openclaw.desktop",
   "build": {
     "frontendDist": "../dist",
